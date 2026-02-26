@@ -1,5 +1,5 @@
 # Analysis Router
-# OceanValue API endpoints for analysis operations
+# CLIMARISK-OG API endpoints for analysis operations
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse

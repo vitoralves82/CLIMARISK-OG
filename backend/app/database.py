@@ -1,5 +1,5 @@
 # Database Configuration
-# OceanValue
+# CLIMARISK-OG
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -13,7 +13,7 @@ load_dotenv()
 # Database URL from environment
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://oceanvalue_user:password@localhost:5432/oceanvalue_db"
+    "postgresql://climarisk_user:password@localhost:5432/climarisk_db"
 )
 
 # Create engine

@@ -1,5 +1,5 @@
 # Backend Requirements
-# OceanValue - Climate Risk Pricing Platform
+# CLIMARISK-OG - Climate Risk Pricing Platform
 
 ## Web Framework
 fastapi==0.104.1

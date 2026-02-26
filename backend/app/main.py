@@ -1,5 +1,5 @@
 # Backend Main Application
-# OceanValue API
+# CLIMARISK-OG API
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,9 +45,9 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="OceanValue API",
-    description="Climate Risk Pricing Platform for Maritime Operations",
-    version="0.1.0",
+    title="CLIMARISK-OG API",
+    description="Climate Risk Pricing Platform for Offshore Operations (CLIMADA-powered)",
+    version="0.2.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
     lifespan=lifespan
@@ -103,7 +103,7 @@ async def health_check():
 async def root():
     """Root endpoint with API info"""
     return {
-        "message": "Welcome to OceanValue API",
+        "message": "Welcome to CLIMARISK-OG API",
         "docs": "/api/docs",
         "version": "0.1.0",
         "endpoints": {

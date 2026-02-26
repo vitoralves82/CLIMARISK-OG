@@ -1,4 +1,4 @@
-# OceanValue Routers __init__.py
+# CLIMARISK-OG Routers __init__.py
 
 from . import hazards, data, analysis, reports
 

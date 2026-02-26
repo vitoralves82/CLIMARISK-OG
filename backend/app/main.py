@@ -20,19 +20,28 @@ logger = logging.getLogger(__name__)
 # Import routers
 from .routers import hazards, data, analysis, reports, climate_data
 
+# CLIMADA Impact Service — initialised at import time as a module-level singleton
+from app.services.climada_impact import climada_service
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events"""
-    logger.info("🚀 OceanValue Backend starting...")
-    
-    # Startup
-    # TODO: Load CLIMADA data
-    # TODO: Initialize cache
-    
+    logger.info("CLIMARISK-OG Backend starting...")
+
+    # Passo 1: CLIMADA ImpactFuncSet — curvas de vulnerabilidade por tipo de ativo
+    asset_count = len(climada_service.get_available_asset_types())
+    logger.info(
+        "ClimadaImpactService: %d tipos de ativo carregados. CLIMADA nativo: %s",
+        asset_count,
+        climada_service.climada_available,
+    )
+
+    # TODO (Passo 2): climada.Hazard ← ERA5 Zarr; climada.Exposures ← shapefiles; Impact.calc()
+    # TODO (Passo 3): climada-petals — TropCyclone, StormEurope, hazards probabilísticos
+
     yield
-    
-    # Shutdown
-    logger.info("🛑 OceanValue Backend shutting down...")
+
+    logger.info("CLIMARISK-OG Backend shutting down...")
 
 # Create FastAPI app
 app = FastAPI(
@@ -80,8 +89,13 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "ok",
-        "service": "OceanValue API",
-        "version": "0.1.0"
+        "service": "CLIMARISK-OG API",
+        "version": "0.2.0",
+        "climada": {
+            "available": climada_service.climada_available,
+            "asset_types": len(climada_service.get_available_asset_types()),
+            "step": "Passo 1 — ImpactFuncSet (curvas de vulnerabilidade)",
+        },
     }
 
 # Root endpoint

@@ -1,82 +1,147 @@
-# OceanValue
+# CLIMARISK-OG
 
 Plataforma de análise de risco climático para operações offshore, com foco em suporte à decisão operacional e impacto econômico/financeiro.
 
 O projeto combina:
-- backend de processamento climático e cálculo de risco;
-- frontend analítico com mapa, dashboards e comparação de cenários;
-- scripts de ingestão para dados externos (ERA5 e CMEMS) com armazenamento otimizado em Zarr.
+- engine de risco com curvas de vulnerabilidade CLIMADA por tipo de ativo offshore;
+- backend de processamento climático (ERA5 Zarr) e cálculo de métricas atuariais;
+- frontend analítico com mapa, dashboards e comparação de cenários.
+
+---
+
+## Arquitetura de Risco — Integração CLIMADA (Passo 1 de 3)
+
+### Antes
+```
+valores ERA5 → classificação 3 estados (0/1/2) → fator fixo × asset_value
+```
+
+### Depois (Passo 1 atual)
+```
+valores ERA5 → ImpactFunc.calc_mdr(intensidade) → damage_ratio contínuo (0.0–1.0) × asset_value
+```
+
+### Roadmap técnico
+
+| Passo | Status | Descrição |
+|-------|--------|-----------|
+| **1** | ✅ **Concluído** | `ImpactFuncSet` com curvas de vulnerabilidade por tipo de ativo; MDR contínuo substitui fatores fixos; backward compatible via `asset_type="generic_offshore"` |
+| **2** | Planejado | `climada.Hazard` ← ERA5 Zarr + CMEMS; `climada.Exposures` ← shapefiles; `Impact.calc()` → EAI + curvas de período de retorno |
+| **3** | Futuro | `climada-petals`: TropCyclone, StormEurope; incerteza; catálogos de eventos sintéticos |
+
+---
+
+## Tipos de Ativo Suportados
+
+| `asset_type` | Nome | Curvas | Referências | Status |
+|---|---|---|---|---|
+| `fpso` | FPSO / FLNG | Vento (kn) + Onda (Hs m) | DNV-ST-0119, DNVGL-OS-E301, API RP 2SK | Calibrado |
+| `fixed_platform` | Plataforma Fixa / Semi-sub | Vento + Onda | API RP 2A-WSD, ISO 19901-2 | Stub (usa FPSO) |
+| `support_vessel` | Embarcação de Apoio PSV/AHTS | Vento + Onda | IMO MODU Code, DNV-GL | Stub (usa FPSO) |
+| `subsea_pipeline` | Duto Submarino / Risers | Onda (sem vento direto) | DNV-ST-F101, DNVGL-RP-F105 | Stub |
+| `generic_offshore` | Offshore Genérico (legado) | Step 0%/35%/100% | Modelo interno | Legado |
+
+> **Backward compatibility:** `asset_type="generic_offshore"` (default) replica exatamente o comportamento anterior.
+> Qualquer outro `asset_type` ativa curvas contínuas CLIMADA.
 
 ---
 
 ## Funcionalidades
 
-- Análise multi-risco por ponto geográfico (ex.: vento, onda, corrente, temperatura).
-- Classificação operacional por limites (operacional, atenção e parada).
-- Cálculo de indicadores de risco e métricas financeiras (AAL, VaR, TVaR, prêmio puro/técnico, etc.).
-- Dashboards com histogramas, curvas de excedência, séries temporais e comparativos históricos vs. futuro.
-- Seleção de área/ponto via mapa e suporte a shapefiles para campos e blocos.
-- Salvamento de análises no módulo de ativos (visão resumida e didática).
-- Scripts para ingestão de dados climáticos e geração de cache Zarr para consultas mais rápidas.
+- Análise multi-risco por ponto geográfico (vento + onda, extensível para corrente, temperatura).
+- Curvas de vulnerabilidade contínuas por tipo de ativo (CLIMADA ImpactFuncSet).
+- Classificação operacional por limites configuráveis (operacional / atenção / parada).
+- Métricas atuariais completas: AAL, PML, VaR, TVaR, prêmio puro e técnico.
+- Dashboards: histogramas, curvas de excedência, séries temporais, rosa dos ventos.
+- Seleção de área/ponto via mapa; suporte a shapefiles para campos e blocos.
+- Análise de exposição geoespacial (Monte Carlo, histograma 2D, grade de pontos).
+- Scripts de ingestão ERA5 e CMEMS com armazenamento em Zarr.
 
 ---
 
 ## Estrutura de pastas (detalhada)
 
 ```text
-OceanValue/
+CLIMARISK-OG/
 ├─ backend/
 │  ├─ app/
-│  │  ├─ main.py                 # Entrada da API FastAPI
-│  │  ├─ database.py             # Configuração de banco/conexão
-│  │  ├─ routers/                # Endpoints REST
-│  │  │  ├─ analysis.py
+│  │  ├─ main.py                 # Entrada da API FastAPI + inicialização ClimadaImpactService
+│  │  ├─ database.py
+│  │  ├─ routers/
+│  │  │  ├─ analysis.py          # POST /multi-risk (asset_type), GET /asset-types, GET /vulnerability-curve
+│  │  │  ├─ hazards.py           # GET /impact-functions, POST /wind/analyze, POST /wave/analyze
 │  │  │  ├─ climate_data.py
 │  │  │  ├─ data.py
-│  │  │  ├─ hazards.py
 │  │  │  └─ reports.py
-│  │  ├─ services/               # Leitura/processamento de dados climáticos
+│  │  ├─ services/
+│  │  │  ├─ climada_impact.py    ← NOVO — ImpactFuncSet singleton (ClimadaImpactService)
+│  │  │  ├─ zarr_reader.py       # Modificado — asset_type + damage ratios CLIMADA
 │  │  │  ├─ netcdf_reader.py
-│  │  │  ├─ zarr_reader.py
 │  │  │  └─ cmems_current.py
-│  │  ├─ models/                 # Modelos de domínio/persistência
-│  │  ├─ schemas/                # Schemas Pydantic
-│  │  ├─ tasks/                  # Tarefas assíncronas (quando aplicável)
-│  │  └─ utils/                  # Utilitários gerais
-│  ├─ requirements.txt
+│  │  │  └─ vulnerability_curves/   ← NOVA PASTA
+│  │  │     ├─ fpso_wind.csv     # Pontos calibrados — vento FPSO/FLNG
+│  │  │     └─ fpso_wave.csv     # Pontos calibrados — onda FPSO/FLNG
+│  │  ├─ models/
+│  │  ├─ schemas/
+│  │  └─ utils/
+│  ├─ requirements.txt           # climada==6.1.0 ativado
 │  └─ Dockerfile
 │
 ├─ frontend/
-│  ├─ src/
-│  │  ├─ main.tsx                # Bootstrap React
-│  │  ├─ App.tsx                 # Composição principal da UI
-│  │  ├─ components/             # Componentes reutilizáveis
-│  │  │  ├─ Map/
-│  │  │  ├─ SideDrawer/
-│  │  │  ├─ Timeline/
-│  │  │  ├─ Header/
-│  │  │  └─ ClimateDataViewer/
-│  │  ├─ pages/                  # Páginas de alto nível
-│  │  │  ├─ AnalysisPage.tsx
-│  │  │  └─ MyAssetsPage.tsx
-│  │  ├─ services/               # Camada de acesso às APIs
-│  │  ├─ styles/                 # Estilos globais
-│  │  ├─ hooks/                  # Hooks customizados
-│  │  └─ utils/                  # Helpers utilitários
-│  ├─ public/                    # Arquivos estáticos (inclui shapefiles)
-│  ├─ package.json
-│  ├─ vite.config.ts
-│  └─ Dockerfile
+│  └─ ...                        # React + TypeScript + Vite
 │
 ├─ scripts/
 │  ├─ download_era5_temperature_to_zarr.py
 │  └─ download_cmems_current_to_zarr.py
 │
-├─ data/                         # Dados locais do projeto
-├─ outputs/                      # Saídas de processamento
-├─ tests/                        # Testes backend/frontend
 ├─ docker-compose.yml
 └─ README.md
+```
+
+---
+
+## API — Endpoints Principais
+
+### Análise Multi-Risco
+
+```
+POST /api/v1/analysis/multi-risk
+```
+
+Campos adicionados nesta versão:
+
+| Campo | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `asset_type` | `str` | `"generic_offshore"` | Tipo de ativo para curva de vulnerabilidade |
+
+Campos adicionados na resposta:
+
+| Campo | Descrição |
+|---|---|
+| `asset_type` | Tipo de ativo usado no cálculo |
+| `impact_functions_used` | Metadados e pontos das curvas CLIMADA usadas (por hazard) |
+| `hazard_pricing_models[hazard].impact_function` | Descrição da curva por hazard |
+
+### Tipos de Ativo
+
+```
+GET /api/v1/analysis/asset-types
+GET /api/v1/hazards/asset-types
+```
+
+### Curvas de Vulnerabilidade
+
+```
+GET /api/v1/analysis/vulnerability-curve?hazard=WS&asset_type=fpso
+GET /api/v1/hazards/impact-functions
+GET /api/v1/hazards/impact-functions/{asset_type}
+```
+
+### Análise Pontual de Perigo
+
+```
+POST /api/v1/hazards/wind/analyze?lat=...&lon=...&wind_threshold=35&asset_type=fpso
+POST /api/v1/hazards/wave/analyze?lat=...&lon=...&wave_threshold=5&asset_type=fpso
 ```
 
 ---
@@ -84,22 +149,14 @@ OceanValue/
 ## Pré-requisitos
 
 ### Sistema
-- Windows, Linux ou macOS
+- Python 3.10+
+- Node.js 18+ / npm 9+
 - Git
 
-### Backend
-- Python 3.10+
-- `pip` atualizado
-- (Opcional, recomendado) Conda para isolamento de ambiente
-
-### Frontend
-- Node.js 18+
-- npm 9+
-
-### Dados/integrações (quando aplicável)
-- Credenciais CDS (ERA5) para download de temperatura
-- Credenciais Copernicus Marine (CMEMS) para download de corrente
-- Token Mapbox para funcionalidades de mapa no frontend
+### Dados
+- Arquivo ERA5 em formato Zarr (caminhos configurados em `zarr_reader.py`)
+- Credenciais CDS (ERA5) e Copernicus Marine (CMEMS) para re-ingestão
+- Token Mapbox para o mapa no frontend
 
 ---
 
@@ -107,31 +164,59 @@ OceanValue/
 
 ### 1) Backend
 
-```powershell
+```bash
 cd backend
 pip install -r requirements.txt
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Documentação da API:
-- http://127.0.0.1:8000/docs
+> **Nota:** `climada==6.1.0` está listado em `requirements.txt`.
+> Se o CLIMADA não estiver instalado, o serviço funciona com interpolação numpy como fallback — a API retorna exatamente os mesmos resultados.
+
+Documentação interativa da API:
+- http://127.0.0.1:8000/api/docs
 
 ### 2) Frontend
 
-```powershell
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
 Aplicação web:
-- http://127.0.0.1:5173
+- http://localhost:5173
 
 ### 3) Variáveis de ambiente
 
-- Copie `.env.example` para `.env`.
-- Configure no frontend: `VITE_MAPBOX_TOKEN`.
-- Configure no backend as variáveis necessárias para integrações externas.
+Copie `.env.example` para `.env` e configure:
+
+| Variável | Descrição |
+|---|---|
+| `VITE_MAPBOX_TOKEN` | Token Mapbox para o mapa |
+| `ZARR_PATH` | Caminho para o arquivo ERA5 Zarr local |
+
+---
+
+## Verificação CLIMADA
+
+```bash
+# Verificar se ClimadaImpactService inicializa corretamente
+python -c "
+from backend.app.services.climada_impact import climada_service
+import numpy as np
+
+# Damage ratio a 35 nós para FPSO — esperado: ~0.35
+dr_wind = climada_service.calc_damage_ratio('WS', np.array([35.0]), 'fpso')
+print(f'FPSO 35 kn → MDR = {dr_wind[0]*100:.1f}%')
+
+# Damage ratio a 5 m Hs para FPSO — esperado: ~0.38
+dr_wave = climada_service.calc_damage_ratio('OW', np.array([5.5]), 'fpso')
+print(f'FPSO 5.5 m Hs → MDR = {dr_wave[0]*100:.1f}%')
+
+print('CLIMADA nativo:', climada_service.climada_available)
+"
+```
 
 ---
 
@@ -148,28 +233,40 @@ Aplicação web:
 
 ### Backend
 - FastAPI + Uvicorn
-- Pydantic
+- Pydantic v2
 - SQLAlchemy / SQLModel / Alembic
-- Xarray, NetCDF4, Zarr
+- **CLIMADA 6.1.0** — ImpactFuncSet por tipo de ativo offshore
+- Xarray, NetCDF4, Zarr (ERA5 local)
 - GeoPandas, Shapely, Fiona, Rasterio, Rioxarray
 - Celery + Redis (estrutura preparada)
 
 ### Infraestrutura
-- Docker e Docker Compose (execução opcional em contêiner)
-- Armazenamento local e externo para dados climáticos (ex.: `D:/OceanPact/climate_data`)
-- Suporte a ingestão de datasets externos (ERA5 e CMEMS)
+- Docker e Docker Compose
+- Frontend: Vercel (deploy automático a cada push na main)
+- Backend: DigitalOcean Droplet (API + Zarr em memória)
+- Dados climáticos: armazenamento local / S3 (arquivo Zarr ERA5)
 
 ---
 
-## Scripts de ingestão mantidos
+## Scripts de ingestão
 
-- `scripts/download_era5_temperature_to_zarr.py`
-- `scripts/download_cmems_current_to_zarr.py`
+- `scripts/download_era5_temperature_to_zarr.py` — temperatura ERA5
+- `scripts/download_cmems_current_to_zarr.py` — correntes CMEMS
 
-Objetivo:
-- baixar dados por recorte espacial (bbox derivada de shapefiles);
-- persistir dados brutos em NetCDF;
-- atualizar cache analítico em formato Zarr.
+---
+
+## Referências Técnicas das Curvas de Vulnerabilidade
+
+| Curva | Referência |
+|-------|-----------|
+| FPSO — vento | DNV-ST-0119 (Marine Operations and Marine Warranty), OGP Report 434-14 |
+| FPSO — onda | DNVGL-OS-E301 (Position Mooring), API RP 2SK (Stationkeeping) |
+| Plataforma fixa | API RP 2A-WSD (Fixed Platforms), ISO 19901-2 |
+| Duto submarino | DNV-ST-F101, DNVGL-RP-F105 (Free Spanning Pipelines) |
+| Modelo CLIMADA | Aznar-Siguan & Bresch (2019), *Geosci. Model Dev.* 12, 3085–3097 |
+| Excedência | Weibull (1939), Hazen (1914), Gringorten (1963) |
+| VaR / TVaR | Artzner et al. (1999), *Mathematical Finance* 9(3) |
+| AAL / PML | OASIS Loss Modelling Framework; AIR Worldwide; RMS |
 
 ---
 
@@ -183,4 +280,4 @@ Objetivo:
 
 ## Última atualização
 
-- 20/02/2026
+- 26/02/2026 — Passo 1: Integração CLIMADA ImpactFuncSet com curvas de vulnerabilidade contínuas por tipo de ativo offshore.

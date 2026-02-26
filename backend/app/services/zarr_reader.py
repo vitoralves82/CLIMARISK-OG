@@ -10,6 +10,14 @@ from shapely.geometry import Point
 from shapely.ops import unary_union
 import fiona
 
+try:
+    from app.services.climada_impact import climada_service, HAZ_WIND, HAZ_WAVE
+    _CLIMADA_SERVICE_AVAILABLE = True
+except ImportError:
+    _CLIMADA_SERVICE_AVAILABLE = False
+    HAZ_WIND = "WS"
+    HAZ_WAVE = "OW"
+
 
 class ZarrDataReader:
     """Read and process climate data from Zarr stores."""
@@ -371,6 +379,7 @@ class ZarrDataReader:
         risk_quantile: float = 0.95,
         expense_ratio: float = 0.15,
         include_series: bool = False,
+        asset_type: str = "generic_offshore",
     ) -> Dict:
         """Calculate multi-risk metrics for a single point."""
 
@@ -470,12 +479,24 @@ class ZarrDataReader:
                 attention_factor = float(np.clip(attention_loss_factor, 0.0, 1.0))
                 stop_factor = float(max(stop_loss_factor, attention_factor))
 
-                hazard_loss_ratio = np.where(
-                    status == 2,
-                    stop_factor,
-                    np.where(status == 1, attention_factor, 0.0),
+                _use_climada = (
+                    _CLIMADA_SERVICE_AVAILABLE
+                    and asset_type
+                    and asset_type not in ("generic_offshore", "")
                 )
-                hazard_loss_per_step = asset_value_f * hazard_loss_ratio
+                if _use_climada:
+                    _haz_code = HAZ_WIND if hazard == "wind" else HAZ_WAVE
+                    hazard_damage_ratio = climada_service.calc_damage_ratio(
+                        _haz_code, values, asset_type
+                    )
+                else:
+                    # Modelo discreto legado (backward compatible com generic_offshore)
+                    hazard_damage_ratio = np.where(
+                        status == 2,
+                        stop_factor,
+                        np.where(status == 1, attention_factor, 0.0),
+                    )
+                hazard_loss_per_step = asset_value_f * hazard_damage_ratio
 
                 hazard_total_hours = max(float(status.size), 1.0)
                 hazard_annualization = 8760.0 / hazard_total_hours
@@ -530,6 +551,17 @@ class ZarrDataReader:
                         }
                     )
 
+                _haz_code_for_meta = HAZ_WIND if hazard == "wind" else HAZ_WAVE
+                _impact_func_meta = (
+                    climada_service.describe_curve(_haz_code_for_meta, asset_type)
+                    if _CLIMADA_SERVICE_AVAILABLE
+                    else {
+                        "asset_type": "generic_offshore",
+                        "mode": "legacy",
+                        "attention_loss_factor": attention_factor,
+                        "stop_loss_factor": stop_factor,
+                    }
+                )
                 hazard_pricing_models[hazard] = {
                     "asset_value": asset_value_f,
                     "attention_loss_factor": attention_factor,
@@ -547,6 +579,7 @@ class ZarrDataReader:
                     "exceedance_method": exceedance_method,
                     "risk_quantile": quantile,
                     "quantile_sensitivity": quantile_sensitivity,
+                    "impact_function": _impact_func_meta,
                 }
 
         if "wind" in hazards:
@@ -725,6 +758,17 @@ class ZarrDataReader:
                 "risk_quantile": quantile,
             }
 
+        # Build impact_functions_used summary (one entry per hazard)
+        impact_functions_used: Dict[str, Dict] = {}
+        if _CLIMADA_SERVICE_AVAILABLE:
+            for hazard in aligned_map:
+                _haz_code = HAZ_WIND if hazard == "wind" else HAZ_WAVE
+                impact_functions_used[hazard] = climada_service.describe_curve(_haz_code, asset_type)
+                if asset_type and asset_type not in ("generic_offshore", ""):
+                    impact_functions_used[hazard]["curve_points"] = climada_service.get_curve_points(
+                        _haz_code, asset_type
+                    )
+
         result = {
             "time": times,
             "hazards": hazards_out,
@@ -739,6 +783,8 @@ class ZarrDataReader:
             "wind_rose": wind_rose,
             "exposure_reference": self._build_exposure_reference(lat=lat, lon=lon),
             "hazard_pricing_models": hazard_pricing_models,
+            "asset_type": asset_type,
+            "impact_functions_used": impact_functions_used,
         }
 
         if include_series:
@@ -902,6 +948,7 @@ class ZarrDataReader:
         attention_limit_knots: float = 20.0,
         cost_attention_per_hour: Optional[float] = None,
         cost_stop_per_hour: Optional[float] = None,
+        asset_type: str = "generic_offshore",
     ) -> Dict:
         """Calculate wind risk metrics for a single point."""
 

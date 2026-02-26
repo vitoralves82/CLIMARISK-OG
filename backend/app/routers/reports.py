@@ -1,5 +1,5 @@
 # Reports Router
-# OceanValue API endpoints for report generation
+# CLIMARISK-OG API endpoints for report generation
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse

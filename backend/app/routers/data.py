@@ -1,5 +1,5 @@
 # Data Router
-# OceanValue API endpoints for data management
+# CLIMARISK-OG API endpoints for data management
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import logging

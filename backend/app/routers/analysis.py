@@ -1,11 +1,12 @@
 # Analysis Router
-# OceanValue API endpoints for analysis operations
+# CLIMARISK-OG API endpoints for analysis operations
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 from app.services.zarr_reader import zarr_reader
+from app.services.climada_impact import climada_service
 import logging
 from io import BytesIO
 import numpy as np
@@ -31,6 +32,7 @@ class WindRiskRequest(BaseModel):
     attention_max_knots: float = 20.0
     cost_attention_per_hour: Optional[float] = None
     cost_stop_per_hour: Optional[float] = None
+    asset_type: str = "generic_offshore"
 
 
 class HazardThreshold(BaseModel):
@@ -57,6 +59,7 @@ class MultiRiskRequest(BaseModel):
     risk_quantile: float = 0.95
     expense_ratio: float = 0.15
     include_series: bool = False
+    asset_type: str = "generic_offshore"
 
 @router.post("/run")
 async def run_analysis(
@@ -108,6 +111,7 @@ async def run_wind_risk(request: WindRiskRequest):
             attention_limit_knots=request.attention_max_knots,
             cost_attention_per_hour=request.cost_attention_per_hour,
             cost_stop_per_hour=request.cost_stop_per_hour,
+            asset_type=request.asset_type,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -144,7 +148,36 @@ async def run_multi_risk(request: MultiRiskRequest):
             risk_quantile=request.risk_quantile,
             expense_ratio=request.expense_ratio,
             include_series=request.include_series,
+            asset_type=request.asset_type,
         )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/asset-types")
+async def list_asset_types():
+    """List available asset types for CLIMADA vulnerability curves."""
+    return {
+        "asset_types": climada_service.get_available_asset_types(),
+        "default": "generic_offshore",
+        "climada_available": climada_service.climada_available,
+    }
+
+
+@router.get("/vulnerability-curve")
+async def get_vulnerability_curve(hazard: str, asset_type: str = "fpso"):
+    """
+    Return vulnerability curve points for a given hazard and asset type.
+
+    Useful for frontend chart rendering (e.g., showing the damage ratio curve
+    alongside the time series).
+
+    - **hazard**: ``WS`` (wind, knots) or ``OW`` (wave, metres Hs)
+    - **asset_type**: ``fpso``, ``fixed_platform``, ``support_vessel``,
+      ``subsea_pipeline``, ``generic_offshore``
+    """
+    try:
+        return climada_service.get_curve_points(hazard, asset_type)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -180,6 +213,7 @@ async def run_multi_risk_pdf(request: MultiRiskRequest):
             risk_quantile=request.risk_quantile,
             expense_ratio=request.expense_ratio,
             include_series=True,
+            asset_type=request.asset_type,
         )
 
         buffer = BytesIO()

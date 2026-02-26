@@ -1,5 +1,5 @@
 # Backend Requirements
-# OceanValue - Climate Risk Pricing Platform
+# CLIMARISK-OG - Climate Risk Pricing Platform
 
 ## Web Framework
 fastapi==0.104.1
@@ -25,7 +25,8 @@ pandas==2.1.3
 numpy==1.26.3
 
 ## CLIMADA Library
-# climada==5.1.1  # Ou versão mais recente
+climada==6.1.0
+# climada-petals  # Passo 3: hazards probabilísticos (descomentar quando pronto)
 
 ## Task Queue & Caching
 celery==5.3.4

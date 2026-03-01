@@ -108,6 +108,15 @@ except Exception as exc:
     _failed_routers["climate_data"] = str(exc)
     logger.error("Router 'climate_data' failed to load: %s", exc)
 
+try:
+    from app.routers import results
+    app.include_router(results.router)
+    _loaded_routers.append("results")
+    logger.info("Router 'results' loaded.")
+except Exception as exc:
+    _failed_routers["results"] = str(exc)
+    logger.error("Router 'results' failed to load: %s", exc)
+
 
 # ── Core endpoints ────────────────────────────────────────────────────────────
 

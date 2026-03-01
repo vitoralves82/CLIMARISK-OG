@@ -217,3 +217,61 @@ async def get_summary(asset_id: str):
         },
         "projection_timeline": sorted(timeline, key=lambda x: (x.get("scenario", ""), x["year"])),
     }
+
+
+@router.post("/upload-seed")
+async def upload_seed_to_r2():
+    """Upload seed data para R2 (admin only - chamado uma vez)."""
+    if not R2_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="R2 not configured. Check env vars: R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY"
+        )
+    uploaded = []
+    errors = []
+    for f in DATA_DIR.glob("results_*.json"):
+        key = f"results/{f.name}"
+        try:
+            s3.upload_file(
+                str(f),
+                r2_bucket,
+                key,
+                ExtraArgs={"ContentType": "application/json"},
+            )
+            uploaded.append(key)
+        except Exception as e:
+            errors.append({"file": f.name, "error": str(e)})
+    return {
+        "uploaded": uploaded,
+        "errors": errors,
+        "r2_available": R2_AVAILABLE,
+        "bucket": r2_bucket,
+    }
+
+
+@router.get("/r2-status")
+async def r2_status():
+    """Verifica status da conexao com R2."""
+    if not R2_AVAILABLE:
+        return {
+            "r2_available": False,
+            "reason": "Env vars missing or boto3 import failed",
+        }
+    try:
+        response = s3.list_objects_v2(Bucket=r2_bucket, Prefix="results/", MaxKeys=10)
+        objects = [
+            {"key": obj["Key"], "size": obj["Size"]}
+            for obj in response.get("Contents", [])
+        ]
+        return {
+            "r2_available": True,
+            "bucket": r2_bucket,
+            "objects": objects,
+            "count": len(objects),
+        }
+    except Exception as e:
+        return {
+            "r2_available": True,
+            "bucket": r2_bucket,
+            "error": str(e),
+        }

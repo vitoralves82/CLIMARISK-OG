@@ -1,0 +1,160 @@
+{
+  "metadata": {
+    "pipeline": "climarisk-og-batch-v1",
+    "version": "1.0",
+    "generated_at": "2026-03-01T12:00:00Z",
+    "climada_version": "6.1.0",
+    "methodology": "CLIMADA multi-hazard H x E x V probabilistic impact",
+    "n_hazards": 2,
+    "scenarios": ["baseline", "ssp245", "ssp585"],
+    "horizons": [2030, 2050, 2100]
+  },
+  "asset": {
+    "id": "REDUC",
+    "name": "REDUC - Refinaria Duque de Caxias",
+    "lat": -22.485,
+    "lon": -43.27,
+    "value_usd": 2500000000,
+    "type": "refinery",
+    "region": "Duque de Caxias, RJ",
+    "operator": "Petrobras"
+  },
+  "baseline": {
+    "hazards": {
+      "RF": {
+        "type": "RF",
+        "type_name": "River Flood",
+        "n_events": 6,
+        "return_periods": [2, 5, 10, 25, 50, 100],
+        "intensity_unit": "m",
+        "max_intensity": 3.8,
+        "impact_function": {
+          "name": "Flood damage function - South America",
+          "id": 3,
+          "source": "Huizinga et al. (2017), doi: 10.2760/16510",
+          "loaded_via": "climada_petals.entity.impact_funcs.river_flood.flood_imp_func_set()",
+          "type": "structural_damage"
+        },
+        "results": {
+          "eai_usd": 939000000,
+          "eai_ratio_pct": 37.56,
+          "impact_by_return_period": {
+            "2": 125000000,
+            "5": 412000000,
+            "10": 798000000,
+            "25": 1340000000,
+            "50": 1720000000,
+            "100": 2050000000
+          }
+        }
+      },
+      "HW": {
+        "type": "HW",
+        "type_name": "Heat Wave",
+        "n_events": 6,
+        "return_periods": [2, 5, 10, 25, 50, 100],
+        "intensity_unit": "deg_C above threshold",
+        "threshold_c": 35,
+        "max_intensity": 8.2,
+        "impact_function": {
+          "name": "Heat Wave - Industrial Facility (Refinery)",
+          "source": "Custom - ECA/McKinsey (2009), Kjellstrom et al. (2016), ILO (2019)",
+          "type": "operational_loss"
+        },
+        "results": {
+          "eai_usd": 542000000,
+          "eai_ratio_pct": 21.68,
+          "impact_by_return_period": {
+            "2": 45000000,
+            "5": 187000000,
+            "10": 425000000,
+            "25": 890000000,
+            "50": 1180000000,
+            "100": 1450000000
+          }
+        }
+      }
+    },
+    "aggregated_results": {
+      "eai_total_usd": 1481000000,
+      "eai_total_ratio_pct": 59.24,
+      "contribution_pct": {
+        "RF": 63.4,
+        "HW": 36.6
+      },
+      "aggregation_method": "simple_sum",
+      "note": "Independence between hazards assumed. No correlation modeled."
+    }
+  },
+  "projections": {
+    "ssp245": {
+      "scenario_name": "SSP2-4.5 (Moderate)",
+      "description": "Middle of the road - moderate challenges",
+      "horizons": {
+        "2030": {
+          "scale_factors": {"RF": 1.08, "HW": 1.12},
+          "hazards": {
+            "RF": {"eai_usd": 1014120000, "eai_ratio_pct": 40.56, "delta_pct": 8.0},
+            "HW": {"eai_usd": 607040000, "eai_ratio_pct": 24.28, "delta_pct": 12.0}
+          },
+          "aggregated": {"eai_total_usd": 1621160000, "eai_total_ratio_pct": 64.85}
+        },
+        "2050": {
+          "scale_factors": {"RF": 1.18, "HW": 1.30},
+          "hazards": {
+            "RF": {"eai_usd": 1108020000, "eai_ratio_pct": 44.32, "delta_pct": 18.0},
+            "HW": {"eai_usd": 704600000, "eai_ratio_pct": 28.18, "delta_pct": 30.0}
+          },
+          "aggregated": {"eai_total_usd": 1812620000, "eai_total_ratio_pct": 72.50}
+        },
+        "2100": {
+          "scale_factors": {"RF": 1.35, "HW": 1.65},
+          "hazards": {
+            "RF": {"eai_usd": 1267650000, "eai_ratio_pct": 50.71, "delta_pct": 35.0},
+            "HW": {"eai_usd": 894300000, "eai_ratio_pct": 35.77, "delta_pct": 65.0}
+          },
+          "aggregated": {"eai_total_usd": 2161950000, "eai_total_ratio_pct": 86.48}
+        }
+      }
+    },
+    "ssp585": {
+      "scenario_name": "SSP5-8.5 (High Emissions)",
+      "description": "Fossil-fueled development - high challenges",
+      "horizons": {
+        "2030": {
+          "scale_factors": {"RF": 1.10, "HW": 1.15},
+          "hazards": {
+            "RF": {"eai_usd": 1032900000, "eai_ratio_pct": 41.32, "delta_pct": 10.0},
+            "HW": {"eai_usd": 623300000, "eai_ratio_pct": 24.93, "delta_pct": 15.0}
+          },
+          "aggregated": {"eai_total_usd": 1656200000, "eai_total_ratio_pct": 66.25}
+        },
+        "2050": {
+          "scale_factors": {"RF": 1.30, "HW": 1.55},
+          "hazards": {
+            "RF": {"eai_usd": 1220700000, "eai_ratio_pct": 48.83, "delta_pct": 30.0},
+            "HW": {"eai_usd": 840100000, "eai_ratio_pct": 33.60, "delta_pct": 55.0}
+          },
+          "aggregated": {"eai_total_usd": 2060800000, "eai_total_ratio_pct": 82.43}
+        },
+        "2100": {
+          "scale_factors": {"RF": 1.60, "HW": 2.20},
+          "hazards": {
+            "RF": {"eai_usd": 1502400000, "eai_ratio_pct": 60.10, "delta_pct": 60.0},
+            "HW": {"eai_usd": 1192400000, "eai_ratio_pct": 47.70, "delta_pct": 120.0}
+          },
+          "aggregated": {"eai_total_usd": 2694800000, "eai_total_ratio_pct": 107.79}
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Synthetic hazard data for both risks (calibrated, not observed)",
+    "Exposure value estimated from public sources",
+    "Heat wave impact function is custom (not calibrated with real loss data)",
+    "Flood impact function is generic (JRC South America residential)",
+    "Independence between hazards assumed (no correlation)",
+    "Single asset analysis",
+    "Scale factors from IPCC AR6 regional averages (not downscaled)"
+  ]
+}
